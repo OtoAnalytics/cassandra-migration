@@ -11,11 +11,12 @@ import com.datastax.driver.core.*;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
 import com.datastax.driver.core.querybuilder.Select;
 
+import java.sql.Date;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static com.datastax.driver.core.querybuilder.QueryBuilder.eq;
 import static com.datastax.driver.core.querybuilder.QueryBuilder.in;
@@ -29,12 +30,14 @@ public class SchemaVersionDAO {
     private Keyspace keyspace;
     private String tableName;
     private CachePrepareStatement cachePs;
+    private QueryBuilder queryBuilder;
 
     public SchemaVersionDAO(Session session, Keyspace keyspace, String tableName) {
         this.session = session;
         this.keyspace = keyspace;
         this.tableName = tableName;
         this.cachePs = new CachePrepareStatement(session);
+        this.queryBuilder = new QueryBuilder(session.getCluster());
     }
 
     public Keyspace getKeyspace() {
@@ -46,7 +49,7 @@ public class SchemaVersionDAO {
             return;
         }
 
-        Statement statement = new SimpleStatement(
+        Statement statement = session.newSimpleStatement(
                 "CREATE TABLE IF NOT EXISTS " + keyspace.getName() + "." + tableName + "(" +
                         "  version_rank int," +
                         "  installed_rank int," +
@@ -64,7 +67,7 @@ public class SchemaVersionDAO {
         statement.setConsistencyLevel(ConsistencyLevel.ALL);
         session.execute(statement);
 
-        statement = new SimpleStatement(
+        statement = session.newSimpleStatement(
                 "CREATE TABLE IF NOT EXISTS " + keyspace.getName() + "." + tableName + COUNTS_TABLE_NAME_SUFFIX + " (" +
                         "  name text," +
                         "  count counter," +
@@ -78,7 +81,7 @@ public class SchemaVersionDAO {
         boolean schemaVersionTableExists = false;
         boolean schemaVersionCountsTableExists = false;
 
-        Statement statement = QueryBuilder
+        Statement statement = queryBuilder
                 .select()
                 .column("columnfamily_name")
                 .from("System", "schema_columnfamilies")
@@ -138,7 +141,7 @@ public class SchemaVersionDAO {
             return new ArrayList<>();
         }
 
-        Select select = QueryBuilder
+        Select select = queryBuilder
                 .select()
                 .column("version_rank")
                 .column("installed_rank")
@@ -165,7 +168,7 @@ public class SchemaVersionDAO {
                     MigrationType.valueOf(row.getString("type")),
                     row.getString("script"),
                     row.isNull("checksum") ? null : row.getInt("checksum"),
-                    row.getDate("installed_on"),
+                    Date.from(row.getTimestamp("installed_on").toInstant()),
                     row.getString("installed_by"),
                     row.getInt("execution_time"),
                     row.getBool("success")
@@ -183,12 +186,12 @@ public class SchemaVersionDAO {
      * @return The installed rank.
      */
     private int calculateInstalledRank() {
-        Statement statement = new SimpleStatement(
+        Statement statement = session.newSimpleStatement(
                 "UPDATE " + keyspace.getName() + "." + tableName + COUNTS_TABLE_NAME_SUFFIX +
                         " SET count = count + 1" +
                         "WHERE name = 'installed_rank';");
         session.execute(statement);
-        Select select = QueryBuilder
+        Select select = queryBuilder
                 .select("count")
                 .from(tableName + COUNTS_TABLE_NAME_SUFFIX);
         select.where(eq("name", "installed_rank"));
@@ -216,7 +219,7 @@ public class SchemaVersionDAO {
      * @return The rank.
      */
     private int calculateVersionRank(MigrationVersion version) {
-        Statement statement = QueryBuilder
+        Statement statement = queryBuilder
                 .select()
                 .column("version")
                 .column("version_rank")

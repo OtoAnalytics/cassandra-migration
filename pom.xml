@@ -3,7 +3,7 @@
     <groupId>com.contrastsecurity</groupId>
     <artifactId>cassandra-migration</artifactId>
     <name>Cassandra Migration</name>
-    <version>0.7-SNAPSHOT</version>
+    <version>0.7-womply-1</version>
     <description>
         Database migration tool for Cassandra
     </description>
@@ -24,14 +24,14 @@
     </organization>
 
     <distributionManagement>
-        <snapshotRepository>
-            <id>ossrh</id>
-            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
-        </snapshotRepository>
         <repository>
-            <id>ossrh</id>
-            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+            <id>womply</id>
+            <url>https://womply.artifactoryonline.com/womply/libs-release-local</url>
         </repository>
+        <snapshotRepository>
+            <id>womply</id>
+            <url>https://womply.artifactoryonline.com/womply/libs-snapshot-local</url>
+        </snapshotRepository>
     </distributionManagement>
 
     <scm>
@@ -81,7 +81,7 @@
         <dependency>
             <groupId>com.datastax.cassandra</groupId>
             <artifactId>cassandra-driver-core</artifactId>
-            <version>2.1.9</version>
+            <version>2.2.0-rc3</version>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
