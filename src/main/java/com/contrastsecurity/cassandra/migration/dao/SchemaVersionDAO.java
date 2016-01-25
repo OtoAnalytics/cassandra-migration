@@ -31,6 +31,7 @@ public class SchemaVersionDAO {
     private String tableName;
     private CachePrepareStatement cachePs;
     private QueryBuilder queryBuilder;
+    private ConsistencyLevel consistencyLevel = ConsistencyLevel.ALL;
 
     public SchemaVersionDAO(Session session, Keyspace keyspace, String tableName) {
         this.session = session;
@@ -42,6 +43,18 @@ public class SchemaVersionDAO {
 
     public Keyspace getKeyspace() {
         return this.keyspace;
+    }
+
+    /**
+     * Override the consistency level to use when applying migration statements. Should only ever be used for testing
+     * purposes in which only a single node is available. Not safe, and not advisable in any other situation.
+     */
+    public void overrideConsistencyLevel(ConsistencyLevel level) {
+        if (level != ConsistencyLevel.ALL){
+            LOG.warn("Using a consistency level other than ALL for SchemaVersionDAO operations, this is only " +
+                    "acceptable in testing situations.");
+        }
+        consistencyLevel = level;
     }
 
     public void createTablesIfNotExist() {
@@ -64,7 +77,7 @@ public class SchemaVersionDAO {
                         "  success boolean," +
                         "  PRIMARY KEY (version)" +
                         ");");
-        statement.setConsistencyLevel(ConsistencyLevel.ALL);
+        statement.setConsistencyLevel(consistencyLevel);
         session.execute(statement);
 
         statement = session.newSimpleStatement(
@@ -73,7 +86,7 @@ public class SchemaVersionDAO {
                         "  count counter," +
                         "  PRIMARY KEY (name)" +
                         ");");
-        statement.setConsistencyLevel(ConsistencyLevel.ALL);
+        statement.setConsistencyLevel(consistencyLevel);
         session.execute(statement);
     }
 
@@ -87,7 +100,7 @@ public class SchemaVersionDAO {
                 .from("System", "schema_columnfamilies")
                 .where(eq("keyspace_name", keyspace.getName()))
                 .and(in("columnfamily_name", tableName, tableName + COUNTS_TABLE_NAME_SUFFIX));
-        statement.setConsistencyLevel(ConsistencyLevel.ALL);
+        statement.setConsistencyLevel(consistencyLevel);
         ResultSet results = session.execute(statement);
         for (Row row : results) {
             String table = row.getString("columnfamily_name");
@@ -115,7 +128,7 @@ public class SchemaVersionDAO {
                         " (?, ?, ?, ?, ?, ?, ?, dateOf(now()), ?, ?, ?);"
         );
 
-        statement.setConsistencyLevel(ConsistencyLevel.ALL);
+        statement.setConsistencyLevel(consistencyLevel);
         session.execute(statement.bind(
                 versionRank,
                 calculateInstalledRank(),
@@ -156,7 +169,7 @@ public class SchemaVersionDAO {
                 .column("success")
                 .from(keyspace.getName(), tableName);
 
-        select.setConsistencyLevel(ConsistencyLevel.ALL);
+        select.setConsistencyLevel(consistencyLevel);
         ResultSet results = session.execute(select);
         List<AppliedMigration> resultsList = new ArrayList<>();
         for (Row row : results) {
@@ -195,7 +208,7 @@ public class SchemaVersionDAO {
                 .select("count")
                 .from(tableName + COUNTS_TABLE_NAME_SUFFIX);
         select.where(eq("name", "installed_rank"));
-        select.setConsistencyLevel(ConsistencyLevel.ALL);
+        select.setConsistencyLevel(consistencyLevel);
         ResultSet result = session.execute(select);
         return (int) result.one().getLong("count");
     }
@@ -224,7 +237,7 @@ public class SchemaVersionDAO {
                 .column("version")
                 .column("version_rank")
                 .from(keyspace.getName(), tableName);
-        statement.setConsistencyLevel(ConsistencyLevel.ALL);
+        statement.setConsistencyLevel(consistencyLevel);
         ResultSet versionRows = session.execute(statement);
 
         List<MigrationVersion> migrationVersions = new ArrayList<>();
@@ -251,7 +264,7 @@ public class SchemaVersionDAO {
                     batchStatement.add(preparedStatement.bind(
                             migrationMetaHolders.get(migrationVersionStr).getVersionRank() + 1,
                             migrationVersionStr));
-                    batchStatement.setConsistencyLevel(ConsistencyLevel.ALL);
+                    batchStatement.setConsistencyLevel(consistencyLevel);
                 }
                 return i + 1;
             }

@@ -14,6 +14,7 @@ import com.contrastsecurity.cassandra.migration.logging.LogFactory;
 import com.contrastsecurity.cassandra.migration.resolver.CompositeMigrationResolver;
 import com.contrastsecurity.cassandra.migration.resolver.MigrationResolver;
 import com.contrastsecurity.cassandra.migration.utils.VersionPrinter;
+import com.datastax.driver.core.ConsistencyLevel;
 import com.datastax.driver.core.Host;
 import com.datastax.driver.core.KeyspaceMetadata;
 import com.datastax.driver.core.Metadata;
@@ -29,6 +30,7 @@ public class CassandraMigration {
     private ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
     private Keyspace keyspace;
     private MigrationConfigs configs;
+    private boolean singleNodeMode = false;
 
     public CassandraMigration() {
         this.keyspace = new Keyspace();
@@ -56,6 +58,14 @@ public class CassandraMigration {
         this.keyspace = keyspace;
     }
 
+    /**
+     * Sets the migrator to operate with the assumption that only one node exists in the cluster. Should only be
+     * used for testing purposes where only one node is available. Will not provide the same consistency guarantees.
+     */
+    public void setSingleNodeMode(boolean singleNode) {
+        singleNodeMode = singleNode;
+    }
+
     public MigrationConfigs getConfigs() {
         return configs;
     }
@@ -67,10 +77,14 @@ public class CassandraMigration {
     public int migrate() {
         return execute(new Action<Integer>() {
             public Integer execute(Session session) {
-                new Initialize().run(session, keyspace, MigrationVersion.CURRENT.getTable());
+                SchemaVersionDAO schemaVersionDAO = new SchemaVersionDAO(session, keyspace, MigrationVersion.CURRENT.getTable());
+                if (singleNodeMode) {
+                    schemaVersionDAO.overrideConsistencyLevel(ConsistencyLevel.ONE);
+                }
+
+                new Initialize().run(schemaVersionDAO);
 
                 MigrationResolver migrationResolver = createMigrationResolver();
-                SchemaVersionDAO schemaVersionDAO = new SchemaVersionDAO(session, keyspace, MigrationVersion.CURRENT.getTable());
                 Migrate migrate = new Migrate(migrationResolver, configs.getTarget(), schemaVersionDAO, session,
                         keyspace.getCluster().getUsername(), configs.isAllowOutOfOrder());
 
@@ -84,6 +98,9 @@ public class CassandraMigration {
             public MigrationInfoService execute(Session session) {
                 MigrationResolver migrationResolver = createMigrationResolver();
                 SchemaVersionDAO schemaVersionDAO = new SchemaVersionDAO(session, keyspace, MigrationVersion.CURRENT.getTable());
+                if (singleNodeMode) {
+                    schemaVersionDAO.overrideConsistencyLevel(ConsistencyLevel.ONE);
+                }
                 MigrationInfoService migrationInfoService =
                         new MigrationInfoService(migrationResolver, schemaVersionDAO, configs.getTarget(), false, true);
                 migrationInfoService.refresh();
@@ -99,6 +116,9 @@ public class CassandraMigration {
     		public String execute(Session session) {
     			MigrationResolver migrationResolver = createMigrationResolver();
     			SchemaVersionDAO schemaVersionDao = new SchemaVersionDAO(session, keyspace, MigrationVersion.CURRENT.getTable());
+                if (singleNodeMode) {
+                    schemaVersionDao.overrideConsistencyLevel(ConsistencyLevel.ONE);
+                }
     			Validate validate = new Validate(migrationResolver, schemaVersionDao, configs.getTarget(), true, false);
     			return validate.run();
     		}
