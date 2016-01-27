@@ -6,7 +6,7 @@ dependencies:
       # set maven settings.xml with artifactory authentication from environment variable
     - echo $MVN_SETTINGS_XML > ~/.m2/settings.xml
   override:
-    - mvn deploy
+    - mvn deploy -DskipITs
 test:
   override:
     - echo 1 # run non-maven tests here
