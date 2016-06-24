@@ -3,7 +3,7 @@
     <groupId>com.contrastsecurity</groupId>
     <artifactId>cassandra-migration</artifactId>
     <name>Cassandra Migration</name>
-    <version>0.7-womply-1</version>
+    <version>0.7-womply-2</version>
     <description>
         Database migration tool for Cassandra
     </description>
@@ -81,7 +81,7 @@
         <dependency>
             <groupId>com.datastax.cassandra</groupId>
             <artifactId>cassandra-driver-core</artifactId>
-            <version>2.2.0-rc3</version>
+            <version>3.0.2</version>
         </dependency>
         <dependency>
             <groupId>junit</groupId>

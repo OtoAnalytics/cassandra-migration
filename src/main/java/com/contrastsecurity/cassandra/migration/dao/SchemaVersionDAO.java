@@ -38,7 +38,6 @@ public class SchemaVersionDAO {
         this.keyspace = keyspace;
         this.tableName = tableName;
         this.cachePs = new CachePrepareStatement(session);
-        this.queryBuilder = new QueryBuilder(session.getCluster());
     }
 
     public Keyspace getKeyspace() {
@@ -62,7 +61,7 @@ public class SchemaVersionDAO {
             return;
         }
 
-        Statement statement = session.newSimpleStatement(
+        Statement statement = new SimpleStatement(
                 "CREATE TABLE IF NOT EXISTS " + keyspace.getName() + "." + tableName + "(" +
                         "  version_rank int," +
                         "  installed_rank int," +
@@ -80,7 +79,7 @@ public class SchemaVersionDAO {
         statement.setConsistencyLevel(consistencyLevel);
         session.execute(statement);
 
-        statement = session.newSimpleStatement(
+        statement = new SimpleStatement(
                 "CREATE TABLE IF NOT EXISTS " + keyspace.getName() + "." + tableName + COUNTS_TABLE_NAME_SUFFIX + " (" +
                         "  name text," +
                         "  count counter," +
@@ -199,7 +198,7 @@ public class SchemaVersionDAO {
      * @return The installed rank.
      */
     private int calculateInstalledRank() {
-        Statement statement = session.newSimpleStatement(
+        Statement statement = new SimpleStatement(
                 "UPDATE " + keyspace.getName() + "." + tableName + COUNTS_TABLE_NAME_SUFFIX +
                         " SET count = count + 1" +
                         "WHERE name = 'installed_rank';");

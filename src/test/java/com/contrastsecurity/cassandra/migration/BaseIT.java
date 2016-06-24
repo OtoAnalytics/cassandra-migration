@@ -35,7 +35,7 @@ public abstract class BaseIT {
 
     @Before
     public void createKeyspace() {
-        Statement statement = getSession(getKeyspace()).newSimpleStatement(
+        Statement statement = new SimpleStatement(
                 "CREATE KEYSPACE " + CASSANDRA__KEYSPACE +
                         "  WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };"
         );
@@ -44,7 +44,7 @@ public abstract class BaseIT {
 
     @After
     public void dropKeyspace() {
-        Statement statement = getSession(getKeyspace()).newSimpleStatement(
+        Statement statement = new SimpleStatement(
                 "DROP KEYSPACE " + CASSANDRA__KEYSPACE + ";"
         );
         getSession(getKeyspace()).execute(statement);

@@ -29,8 +29,6 @@ public class CassandraMigrationIT extends BaseIT {
 		cm.setKeyspace(getKeyspace());
 		cm.migrate();
 
-		QueryBuilder queryBuilder = new QueryBuilder(getSession().getCluster());
-
 		MigrationInfoService infoService = cm.info();
 		System.out.println("Initial migration");
 		System.out.println(MigrationInfoDumper.dumpToAsciiTable(infoService.all()));
@@ -42,7 +40,7 @@ public class CassandraMigrationIT extends BaseIT {
 				assertThat(info.getType().name(), is(MigrationType.JAVA_DRIVER.name()));
 				assertThat(info.getScript().contains(".java"), is(true));
 
-				Select select = queryBuilder.select().column("value").from("test1");
+				Select select = QueryBuilder.select().column("value").from("test1");
 				select.where(eq("space", "web")).and(eq("key", "facebook"));
 				ResultSet result = getSession().execute(select);
 				assertThat(result.one().getString("value"), is("facebook.com"));
@@ -51,7 +49,7 @@ public class CassandraMigrationIT extends BaseIT {
 				assertThat(info.getType().name(), is(MigrationType.JAVA_DRIVER.name()));
 				assertThat(info.getScript().contains(".java"), is(true));
 
-				Select select = queryBuilder.select().column("value").from("test1");
+				Select select = QueryBuilder.select().column("value").from("test1");
 				select.where(eq("space", "web")).and(eq("key", "google"));
 				ResultSet result = getSession().execute(select);
 				assertThat(result.one().getString("value"), is("google.com"));
@@ -60,7 +58,7 @@ public class CassandraMigrationIT extends BaseIT {
 				assertThat(info.getType().name(), is(MigrationType.CQL.name()));
 				assertThat(info.getScript().contains(".cql"), is(true));
 
-				Select select = queryBuilder.select().column("title").column("message").from("contents");
+				Select select = QueryBuilder.select().column("title").column("message").from("contents");
 				select.where(eq("id", 1));
 				Row row = getSession().execute(select).one();
 				assertThat(row.getString("title"), is("foo"));
@@ -70,7 +68,7 @@ public class CassandraMigrationIT extends BaseIT {
 				assertThat(info.getType().name(), is(MigrationType.CQL.name()));
 				assertThat(info.getScript().contains(".cql"), is(true));
 
-				Select select = queryBuilder.select().column("value").from("test1");
+				Select select = QueryBuilder.select().column("value").from("test1");
 				select.where(eq("space", "foo")).and(eq("key", "bar"));
 				ResultSet result = getSession().execute(select);
 				assertThat(result.one().getString("value"), is("profit!"));
