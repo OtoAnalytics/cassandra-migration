@@ -3,7 +3,7 @@
     <groupId>com.contrastsecurity</groupId>
     <artifactId>cassandra-migration</artifactId>
     <name>Cassandra Migration</name>
-    <version>0.7-womply-2</version>
+    <version>0.7-womply-3</version>
     <description>
         Database migration tool for Cassandra
     </description>
@@ -25,12 +25,12 @@
 
     <distributionManagement>
         <repository>
-            <id>womply</id>
-            <url>https://womply.artifactoryonline.com/womply/libs-release-local</url>
+            <id>thirdparty-maven-repo-releases</id>
+            <url>s3://womply-maven/thirdparty-releases</url>
         </repository>
         <snapshotRepository>
-            <id>womply</id>
-            <url>https://womply.artifactoryonline.com/womply/libs-snapshot-local</url>
+            <id>thirdparty-maven-repo-snapshots</id>
+            <url>s3://womply-maven/thirdparty-snapshots</url>
         </snapshotRepository>
     </distributionManagement>
 
@@ -81,7 +81,7 @@
         <dependency>
             <groupId>com.datastax.cassandra</groupId>
             <artifactId>cassandra-driver-core</artifactId>
-            <version>3.0.2</version>
+            <version>3.1.1</version>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
@@ -124,8 +124,7 @@
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>18.0</version>
-            <scope>test</scope>
+            <version>19.0</version>
         </dependency>
     </dependencies>
 
