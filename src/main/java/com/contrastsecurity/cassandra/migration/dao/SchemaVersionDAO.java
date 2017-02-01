@@ -1,5 +1,7 @@
 package com.contrastsecurity.cassandra.migration.dao;
 
+import static com.datastax.driver.core.querybuilder.QueryBuilder.eq;
+
 import com.contrastsecurity.cassandra.migration.config.Keyspace;
 import com.contrastsecurity.cassandra.migration.config.MigrationType;
 import com.contrastsecurity.cassandra.migration.info.AppliedMigration;
@@ -7,19 +9,22 @@ import com.contrastsecurity.cassandra.migration.info.MigrationVersion;
 import com.contrastsecurity.cassandra.migration.logging.Log;
 import com.contrastsecurity.cassandra.migration.logging.LogFactory;
 import com.contrastsecurity.cassandra.migration.utils.CachePrepareStatement;
-import com.datastax.driver.core.*;
+import com.datastax.driver.core.BatchStatement;
+import com.datastax.driver.core.ConsistencyLevel;
+import com.datastax.driver.core.PreparedStatement;
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Row;
+import com.datastax.driver.core.Session;
+import com.datastax.driver.core.SimpleStatement;
+import com.datastax.driver.core.Statement;
+import com.datastax.driver.core.exceptions.InvalidQueryException;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
 import com.datastax.driver.core.querybuilder.Select;
 
-import java.sql.Date;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-
-import static com.datastax.driver.core.querybuilder.QueryBuilder.eq;
-import static com.datastax.driver.core.querybuilder.QueryBuilder.in;
 
 public class SchemaVersionDAO {
 
@@ -30,30 +35,21 @@ public class SchemaVersionDAO {
     private Keyspace keyspace;
     private String tableName;
     private CachePrepareStatement cachePs;
-    private QueryBuilder queryBuilder;
-    private ConsistencyLevel consistencyLevel = ConsistencyLevel.ALL;
+    private ConsistencyLevel consistencyLevel;
 
     public SchemaVersionDAO(Session session, Keyspace keyspace, String tableName) {
         this.session = session;
         this.keyspace = keyspace;
         this.tableName = tableName;
         this.cachePs = new CachePrepareStatement(session);
+        //If running on a single host, don't force ConsistencyLevel.ALL
+        this.consistencyLevel =
+                session.getCluster().getMetadata().getAllHosts().size() > 1 ? ConsistencyLevel.ALL : ConsistencyLevel
+                        .ONE;
     }
 
     public Keyspace getKeyspace() {
         return this.keyspace;
-    }
-
-    /**
-     * Override the consistency level to use when applying migration statements. Should only ever be used for testing
-     * purposes in which only a single node is available. Not safe, and not advisable in any other situation.
-     */
-    public void overrideConsistencyLevel(ConsistencyLevel level) {
-        if (level != ConsistencyLevel.ALL){
-            LOG.warn("Using a consistency level other than ALL for SchemaVersionDAO operations, this is only " +
-                    "acceptable in testing situations.");
-        }
-        consistencyLevel = level;
     }
 
     public void createTablesIfNotExist() {
@@ -93,23 +89,37 @@ public class SchemaVersionDAO {
         boolean schemaVersionTableExists = false;
         boolean schemaVersionCountsTableExists = false;
 
-        Statement statement = queryBuilder
+        Statement schemaVersionStatement = QueryBuilder
                 .select()
-                .column("columnfamily_name")
-                .from("System", "schema_columnfamilies")
-                .where(eq("keyspace_name", keyspace.getName()))
-                .and(in("columnfamily_name", tableName, tableName + COUNTS_TABLE_NAME_SUFFIX));
-        statement.setConsistencyLevel(consistencyLevel);
-        ResultSet results = session.execute(statement);
-        for (Row row : results) {
-            String table = row.getString("columnfamily_name");
-            if (null != table && table.equalsIgnoreCase(tableName)) {
+                .countAll()
+                .from(keyspace.getName(), tableName);
+
+        Statement schemaVersionCountsStatement = QueryBuilder
+                .select()
+                .countAll()
+                .from(keyspace.getName(), tableName + COUNTS_TABLE_NAME_SUFFIX);
+
+        schemaVersionStatement.setConsistencyLevel(this.consistencyLevel);
+        schemaVersionCountsStatement.setConsistencyLevel(this.consistencyLevel);
+
+        try {
+            ResultSet resultsSchemaVersion = session.execute(schemaVersionStatement);
+            if (resultsSchemaVersion.one() != null) {
                 schemaVersionTableExists = true;
             }
-            if (null != table && table.equalsIgnoreCase(tableName + COUNTS_TABLE_NAME_SUFFIX)) {
+        } catch (InvalidQueryException e) {
+            LOG.debug("No schema version table found with a name of " + tableName);
+        }
+
+        try {
+            ResultSet resultsSchemaVersionCounts = session.execute(schemaVersionCountsStatement);
+            if (resultsSchemaVersionCounts.one() != null) {
                 schemaVersionCountsTableExists = true;
             }
+        } catch (InvalidQueryException e) {
+            LOG.debug("No schema version counts table found with a name of " + tableName + COUNTS_TABLE_NAME_SUFFIX);
         }
+
         return schemaVersionTableExists && schemaVersionCountsTableExists;
     }
 
@@ -153,7 +163,7 @@ public class SchemaVersionDAO {
             return new ArrayList<>();
         }
 
-        Select select = queryBuilder
+        Select select = QueryBuilder
                 .select()
                 .column("version_rank")
                 .column("installed_rank")
@@ -180,7 +190,7 @@ public class SchemaVersionDAO {
                     MigrationType.valueOf(row.getString("type")),
                     row.getString("script"),
                     row.isNull("checksum") ? null : row.getInt("checksum"),
-                    Date.from(row.getTimestamp("installed_on").toInstant()),
+                    row.getTimestamp("installed_on"),
                     row.getString("installed_by"),
                     row.getInt("execution_time"),
                     row.getBool("success")
@@ -203,7 +213,7 @@ public class SchemaVersionDAO {
                         " SET count = count + 1" +
                         "WHERE name = 'installed_rank';");
         session.execute(statement);
-        Select select = queryBuilder
+        Select select = QueryBuilder
                 .select("count")
                 .from(tableName + COUNTS_TABLE_NAME_SUFFIX);
         select.where(eq("name", "installed_rank"));
@@ -231,7 +241,7 @@ public class SchemaVersionDAO {
      * @return The rank.
      */
     private int calculateVersionRank(MigrationVersion version) {
-        Statement statement = queryBuilder
+        Statement statement = QueryBuilder
                 .select()
                 .column("version")
                 .column("version_rank")

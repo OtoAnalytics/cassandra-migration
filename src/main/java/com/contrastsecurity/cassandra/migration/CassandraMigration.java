@@ -14,7 +14,6 @@ import com.contrastsecurity.cassandra.migration.logging.LogFactory;
 import com.contrastsecurity.cassandra.migration.resolver.CompositeMigrationResolver;
 import com.contrastsecurity.cassandra.migration.resolver.MigrationResolver;
 import com.contrastsecurity.cassandra.migration.utils.VersionPrinter;
-import com.datastax.driver.core.ConsistencyLevel;
 import com.datastax.driver.core.Host;
 import com.datastax.driver.core.KeyspaceMetadata;
 import com.datastax.driver.core.Metadata;
@@ -30,7 +29,6 @@ public class CassandraMigration {
     private ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
     private Keyspace keyspace;
     private MigrationConfigs configs;
-    private boolean singleNodeMode = false;
 
     public CassandraMigration() {
         this.keyspace = new Keyspace();
@@ -44,7 +42,8 @@ public class CassandraMigration {
     /**
      * Sets the ClassLoader to use for resolving migrations on the classpath.
      *
-     * @param classLoader The ClassLoader to use for resolving migrations on the classpath. (default: Thread.currentThread().getContextClassLoader() )
+     * @param classLoader The ClassLoader to use for resolving migrations on the classpath. (default: Thread
+     *                    .currentThread().getContextClassLoader() )
      */
     public void setClassLoader(ClassLoader classLoader) {
         this.classLoader = classLoader;
@@ -58,30 +57,20 @@ public class CassandraMigration {
         this.keyspace = keyspace;
     }
 
-    /**
-     * Sets the migrator to operate with the assumption that only one node exists in the cluster. Should only be
-     * used for testing purposes where only one node is available. Will not provide the same consistency guarantees.
-     */
-    public void setSingleNodeMode(boolean singleNode) {
-        singleNodeMode = singleNode;
-    }
-
     public MigrationConfigs getConfigs() {
         return configs;
     }
 
     private MigrationResolver createMigrationResolver() {
-        return new CompositeMigrationResolver(classLoader, new ScriptsLocations(configs.getScriptsLocations()), configs.getEncoding());
+        return new CompositeMigrationResolver(classLoader, new ScriptsLocations(configs.getScriptsLocations()),
+                configs.getEncoding());
     }
 
     public int migrate() {
         return execute(new Action<Integer>() {
             public Integer execute(Session session) {
-                SchemaVersionDAO schemaVersionDAO = new SchemaVersionDAO(session, keyspace, MigrationVersion.CURRENT.getTable());
-                if (singleNodeMode) {
-                    schemaVersionDAO.overrideConsistencyLevel(ConsistencyLevel.ONE);
-                }
-
+                SchemaVersionDAO schemaVersionDAO = new SchemaVersionDAO(session, keyspace, MigrationVersion.CURRENT
+                        .getTable());
                 new Initialize().run(schemaVersionDAO);
 
                 MigrationResolver migrationResolver = createMigrationResolver();
@@ -97,10 +86,8 @@ public class CassandraMigration {
         return execute(new Action<MigrationInfoService>() {
             public MigrationInfoService execute(Session session) {
                 MigrationResolver migrationResolver = createMigrationResolver();
-                SchemaVersionDAO schemaVersionDAO = new SchemaVersionDAO(session, keyspace, MigrationVersion.CURRENT.getTable());
-                if (singleNodeMode) {
-                    schemaVersionDAO.overrideConsistencyLevel(ConsistencyLevel.ONE);
-                }
+                SchemaVersionDAO schemaVersionDAO = new SchemaVersionDAO(session, keyspace, MigrationVersion.CURRENT
+                        .getTable());
                 MigrationInfoService migrationInfoService =
                         new MigrationInfoService(migrationResolver, schemaVersionDAO, configs.getTarget(), false, true);
                 migrationInfoService.refresh();
@@ -111,24 +98,22 @@ public class CassandraMigration {
     }
 
     public void validate() {
-    	String validationError = execute(new Action<String>() {
-    		@Override
-    		public String execute(Session session) {
-    			MigrationResolver migrationResolver = createMigrationResolver();
-    			SchemaVersionDAO schemaVersionDao = new SchemaVersionDAO(session, keyspace, MigrationVersion.CURRENT.getTable());
-                if (singleNodeMode) {
-                    schemaVersionDao.overrideConsistencyLevel(ConsistencyLevel.ONE);
-                }
-    			Validate validate = new Validate(migrationResolver, schemaVersionDao, configs.getTarget(), true, false);
-    			return validate.run();
-    		}
-    	});
-    
-    	if (validationError != null) {
-    		throw new CassandraMigrationException("Validation failed. " + validationError);
-    	}
+        String validationError = execute(new Action<String>() {
+            @Override
+            public String execute(Session session) {
+                MigrationResolver migrationResolver = createMigrationResolver();
+                SchemaVersionDAO schemaVersionDao = new SchemaVersionDAO(session, keyspace, MigrationVersion.CURRENT
+                        .getTable());
+                Validate validate = new Validate(migrationResolver, schemaVersionDao, configs.getTarget(), true, false);
+                return validate.run();
+            }
+        });
+
+        if (validationError != null) {
+            throw new CassandraMigrationException("Validation failed. " + validationError);
+        }
     }
-    
+
     public void baseline() {
         //TODO
         throw new NotImplementedException();
@@ -157,15 +142,18 @@ public class CassandraMigration {
         Session session = null;
         try {
             if (null == keyspace)
-                throw new IllegalArgumentException("Unable to establish Cassandra session. Keyspace is not configured.");
+                throw new IllegalArgumentException("Unable to establish Cassandra session. Keyspace is not configured" +
+                        ".");
 
             if (null == keyspace.getCluster())
                 throw new IllegalArgumentException("Unable to establish Cassandra session. Cluster is not configured.");
 
             com.datastax.driver.core.Cluster.Builder builder = new com.datastax.driver.core.Cluster.Builder();
-            builder.addContactPoints(keyspace.getCluster().getContactpoints()).withPort(keyspace.getCluster().getPort());
+            builder.addContactPoints(keyspace.getCluster().getContactpoints()).withPort(keyspace.getCluster().getPort
+                    ());
             if (null != keyspace.getCluster().getUsername() && !keyspace.getCluster().getUsername().trim().isEmpty()) {
-                if (null != keyspace.getCluster().getPassword() && !keyspace.getCluster().getPassword().trim().isEmpty()) {
+                if (null != keyspace.getCluster().getPassword() && !keyspace.getCluster().getPassword().trim()
+                        .isEmpty()) {
                     builder.withCredentials(keyspace.getCluster().getUsername(),
                             keyspace.getCluster().getPassword());
                 } else {
@@ -196,13 +184,13 @@ public class CassandraMigration {
             if (null != session && !session.isClosed())
                 try {
                     session.close();
-                } catch(Exception e) {
+                } catch (Exception e) {
                     LOG.warn("Error closing Cassandra session");
                 }
             if (null != cluster && !cluster.isClosed())
                 try {
                     cluster.close();
-                } catch(Exception e) {
+                } catch (Exception e) {
                     LOG.warn("Error closing Cassandra cluster");
                 }
         }
